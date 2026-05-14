@@ -1,18 +1,46 @@
-# Low-Latency Order Book Backtesting Engine
+# Market Microstructure Console
 
-A C++17 event-driven limit order book and market replay engine built for quant developer and SWE roles at trading firms. The project focuses on correctness, realistic exchange mechanics, reproducible benchmarks, and a Python research layer for post-trade analysis.
+A live market microstructure dashboard with a C++17 order book/replay engine and a deployed browser console that ingests real Coinbase Exchange market events. The public app subscribes to live `level2`, `matches`, and `ticker` WebSocket channels and displays order book depth, trades, spread, midprice, imbalance, VWAP, and short-horizon flow.
 
-Project page: https://pranavputta22.github.io/Quant_Project/
+Public app: https://pranavputta22.github.io/Quant_Project/
 
-## What It Demonstrates
+## Browser App
+
+The deployed app runs entirely in the browser:
+
+- Connects to Coinbase Exchange public WebSocket market data
+- Maintains live bid/ask depth from the `level2` feed
+- Displays real-time trades from the `matches` feed
+- Tracks last price, spread, midprice, top-of-book imbalance, VWAP, volume, and notional
+- Supports switching between liquid USD markets such as `BTC-USD`, `ETH-USD`, and `SOL-USD`
+
+Open locally by launching:
+
+```powershell
+.\docs\index.html
+```
+
+or by serving the folder:
+
+```powershell
+python -m http.server 8000 -d docs
+```
+
+Then visit:
+
+```text
+http://localhost:8000
+```
+
+## C++ Replay Engine
+
+The native engine is still available for deterministic local testing:
 
 - Price-time priority matching for limit and market orders
-- Order cancellation with O(1) order lookup by id
-- Level 2 book reconstruction from event streams
+- Order cancellation with O(1) lookup by id
 - CSV market replay with trade log output
-- Realistic metrics: volume, notional, spread, midprice, realized PnL proxy, and drawdown
 - Unit-style correctness tests for matching, resting liquidity, and cancellation
-- Python analysis layer for summaries and optional plotting
+- Python analysis layer for replay output summaries
 
 ## Project Layout
 
@@ -91,15 +119,10 @@ Supported event types:
 
 Supported sides are `BUY` and `SELL`. Market order prices are ignored and can be `0`.
 
-## Resume Bullets
-
-- Built a C++17 event-driven limit order book and replay engine supporting price-time priority matching, cancellations, market orders, trade logging, and Level 2 book reconstruction.
-- Implemented O(1) cancellation lookup and deterministic matching tests for order priority, partial fills, and resting liquidity correctness.
-- Added a Python research layer to analyze replay outputs, summarize notional/volume/PnL proxy, and generate optional execution charts.
-
 ## Next Extensions
 
-- Add binary tick-data parsing and memory-mapped input
+- Add a backend collector for historical event storage
+- Add replay controls for recorded real market sessions
 - Add latency models, fees, queue position, and slippage assumptions
 - Bind the engine to Python with `pybind11`
 - Benchmark against a pure Python baseline on 10M+ synthetic events
