@@ -1,6 +1,6 @@
 # Market Microstructure Console
 
-A live market microstructure dashboard with a C++17 order book/replay engine and a deployed browser console that ingests real Coinbase Exchange market events. The public app subscribes to live `level2`, `matches`, and `ticker` WebSocket channels and displays order book depth, trades, spread, midprice, imbalance, VWAP, and short-horizon flow.
+A live market microstructure dashboard with a C++17 order book/replay engine and a deployed browser console that ingests real Coinbase Exchange market events. The public app subscribes to live `level2_batch`, `matches`, and `ticker` WebSocket channels and displays order book depth, trades, spread, midprice, imbalance, VWAP, and short-horizon flow.
 
 Public app: https://pranavputta22.github.io/Quant_Project/
 
@@ -9,7 +9,7 @@ Public app: https://pranavputta22.github.io/Quant_Project/
 The deployed app runs entirely in the browser:
 
 - Connects to Coinbase Exchange public WebSocket market data
-- Maintains live bid/ask depth from the `level2` feed
+- Maintains live bid/ask depth from the unauthenticated `level2_batch` feed
 - Displays real-time trades from the `matches` feed
 - Tracks last price, spread, midprice, top-of-book imbalance, VWAP, volume, and notional
 - Supports switching between liquid USD markets such as `BTC-USD`, `ETH-USD`, and `SOL-USD`
@@ -40,7 +40,7 @@ The native engine is still available for deterministic local testing:
 - Price-time priority matching for limit and market orders
 - Order cancellation with O(1) lookup by id
 - CSV market replay with trade log output
-- Coinbase JSONL replay for recorded `level2` and `match` messages
+- Coinbase JSONL replay for recorded `level2_batch` and `match` messages
 - Session analytics for average/min/max spread and average absolute imbalance
 - Synthetic benchmark executable for events/sec throughput checks
 - Unit-style correctness tests for matching, resting liquidity, and cancellation

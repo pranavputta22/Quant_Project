@@ -553,7 +553,7 @@
           </div>
 
           <p id="note" class="footer-note">
-            Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2, matches, and ticker channels in the browser.
+            Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2_batch, matches, and ticker channels in the browser.
           </p>
         </div>
 
@@ -656,7 +656,7 @@
         fields.vwap.textContent = "--";
         fields.notional.textContent = "--";
         fields.note.textContent =
-          "Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2, matches, and ticker channels in the browser.";
+          "Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2_batch, matches, and ticker channels in the browser.";
         bidsEl.innerHTML = "";
         asksEl.innerHTML = "";
         tradesEl.innerHTML = "";
@@ -667,7 +667,7 @@
         socket.send(JSON.stringify({
           type: "subscribe",
           product_ids: [product.value],
-          channels: ["level2", "matches", "ticker"]
+          channels: ["level2_batch", "matches", "ticker"]
         }));
       }
 
