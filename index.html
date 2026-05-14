@@ -3,22 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Low-Latency Order Book Backtesting Engine</title>
+    <title>Market Microstructure Console</title>
     <meta
       name="description"
-      content="A C++17 limit order book and market replay engine for quant developer and SWE roles at trading firms."
+      content="A live market microstructure console for monitoring Coinbase Exchange order book, trades, spread, imbalance, and short-horizon flow."
     />
     <style>
       :root {
         color-scheme: light;
-        --ink: #16201c;
-        --muted: #5b6862;
-        --line: #d7ded8;
-        --paper: #f8faf7;
-        --panel: #ffffff;
-        --accent: #0e7c66;
-        --accent-dark: #075c4c;
-        --warm: #d88c2f;
+        --bg: #f4f6f2;
+        --surface: #ffffff;
+        --surface-2: #edf1eb;
+        --ink: #17211c;
+        --muted: #627069;
+        --line: #d6ddd4;
+        --bid: #087b5f;
+        --bid-soft: rgba(8, 123, 95, 0.12);
+        --ask: #a83e3a;
+        --ask-soft: rgba(168, 62, 58, 0.12);
+        --focus: #245a9a;
+        --warn: #bd7a1d;
+        --shadow: 0 18px 42px rgba(23, 33, 28, 0.08);
       }
 
       * {
@@ -27,336 +32,874 @@
 
       body {
         margin: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        min-width: 320px;
         color: var(--ink);
-        background: var(--paper);
-        line-height: 1.5;
+        background: var(--bg);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.35;
+      }
+
+      button,
+      select {
+        font: inherit;
       }
 
       header {
         border-bottom: 1px solid var(--line);
-        background: rgba(248, 250, 247, 0.94);
+        background: rgba(244, 246, 242, 0.96);
         position: sticky;
         top: 0;
-        z-index: 2;
+        z-index: 5;
         backdrop-filter: blur(12px);
       }
 
-      nav,
-      main,
-      footer {
-        width: min(1120px, calc(100% - 32px));
+      .topbar,
+      main {
+        width: min(1440px, calc(100% - 28px));
         margin: 0 auto;
       }
 
-      nav {
+      .topbar {
         min-height: 64px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 16px;
+        gap: 18px;
       }
 
       .brand {
-        font-weight: 750;
-        letter-spacing: 0;
-      }
-
-      .nav-links {
         display: flex;
         align-items: center;
-        gap: 14px;
-        font-size: 14px;
+        gap: 12px;
+        min-width: 0;
       }
 
-      a {
-        color: var(--accent-dark);
-        text-decoration: none;
-        font-weight: 650;
-      }
-
-      a:hover {
-        text-decoration: underline;
-      }
-
-      .hero {
+      .mark {
+        width: 34px;
+        height: 34px;
         display: grid;
-        grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-        gap: 44px;
-        align-items: center;
-        padding: 72px 0 40px;
+        place-items: center;
+        border: 1px solid #afbbb2;
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--bid);
+        font-weight: 800;
       }
 
       h1 {
         margin: 0;
-        max-width: 760px;
-        font-size: clamp(42px, 7vw, 84px);
-        line-height: 0.95;
+        font-size: 17px;
         letter-spacing: 0;
       }
 
-      .lead {
-        max-width: 690px;
-        margin: 24px 0 0;
+      .subtitle {
+        margin: 2px 0 0;
         color: var(--muted);
-        font-size: 20px;
+        font-size: 12px;
       }
 
-      .actions {
+      .controls {
         display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
         flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 28px;
       }
 
-      .button {
-        min-height: 44px;
+      .control {
+        min-height: 38px;
         display: inline-flex;
         align-items: center;
-        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface);
         border-radius: 7px;
-        padding: 0 16px;
-        border: 1px solid var(--accent);
-        background: var(--accent);
+        padding: 0 10px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      select {
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        outline: 0;
+        font-weight: 700;
+      }
+
+      button {
+        min-height: 38px;
+        border: 1px solid var(--ink);
+        border-radius: 7px;
+        padding: 0 13px;
+        background: var(--ink);
         color: #ffffff;
         font-weight: 750;
+        cursor: pointer;
       }
 
-      .button.secondary {
-        color: var(--accent-dark);
-        background: transparent;
+      button.secondary {
+        color: var(--ink);
+        background: var(--surface);
+        border-color: var(--line);
       }
 
-      .terminal {
-        border: 1px solid #1f2d28;
-        background: #101814;
-        color: #d8efe4;
+      button:focus-visible,
+      select:focus-visible {
+        outline: 3px solid rgba(36, 90, 154, 0.25);
+        outline-offset: 2px;
+      }
+
+      main {
+        padding: 18px 0 28px;
+      }
+
+      .status-row {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .stat,
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
         border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 24px 60px rgba(22, 32, 28, 0.16);
+        box-shadow: var(--shadow);
       }
 
-      .terminal-bar {
+      .stat {
+        min-height: 82px;
+        padding: 13px 14px;
+      }
+
+      .stat-label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+      }
+
+      .stat-value {
+        margin-top: 8px;
+        font-size: 23px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .stat-value.small {
+        font-size: 16px;
+      }
+
+      .live-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        display: inline-block;
+        margin-right: 7px;
+        background: var(--warn);
+      }
+
+      .live-dot.on {
+        background: var(--bid);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(360px, 1.02fr) minmax(420px, 1.25fr) minmax(340px, 0.95fr);
+        gap: 14px;
+        align-items: start;
+      }
+
+      .panel-header {
+        min-height: 46px;
         display: flex;
         align-items: center;
-        gap: 7px;
-        min-height: 38px;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
         padding: 0 14px;
-        background: #16231d;
-        border-bottom: 1px solid #26372f;
-      }
-
-      .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 999px;
-        background: var(--warm);
-      }
-
-      pre {
-        margin: 0;
-        padding: 20px;
-        overflow-x: auto;
-        font-size: 14px;
-        line-height: 1.6;
-      }
-
-      code {
-        font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-      }
-
-      section {
-        padding: 46px 0;
-        border-top: 1px solid var(--line);
       }
 
       h2 {
-        margin: 0 0 18px;
-        font-size: 28px;
+        margin: 0;
+        font-size: 14px;
         letter-spacing: 0;
       }
 
-      .grid {
+      .meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .book {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+      }
+
+      .side {
+        min-width: 0;
+      }
+
+      .side + .side {
+        border-left: 1px solid var(--line);
+      }
+
+      .table-head,
+      .level,
+      .trade {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .table-head {
+        height: 34px;
+        padding: 0 12px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .levels {
+        height: 606px;
+        overflow: hidden;
+      }
+
+      .level {
+        position: relative;
+        height: 24px;
+        padding: 0 12px;
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+      }
+
+      .level::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        right: 0;
+        width: var(--depth, 0%);
+        z-index: 0;
+      }
+
+      .bid .level::before {
+        background: var(--bid-soft);
+      }
+
+      .ask .level::before {
+        background: var(--ask-soft);
+      }
+
+      .level span,
+      .trade span {
+        position: relative;
+        z-index: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .price.bid-text {
+        color: var(--bid);
+        font-weight: 800;
+      }
+
+      .price.ask-text {
+        color: var(--ask);
+        font-weight: 800;
+      }
+
+      .mid-panel {
+        display: grid;
         gap: 14px;
       }
 
-      .card {
-        min-height: 156px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 18px;
-        background: var(--panel);
+      .chart-wrap {
+        padding: 14px;
       }
 
-      .card h3 {
-        margin: 0 0 8px;
-        font-size: 18px;
-      }
-
-      .card p,
-      .metric span {
-        margin: 0;
-        color: var(--muted);
-      }
-
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      .metric {
-        border-top: 3px solid var(--accent);
-        background: var(--panel);
-        padding: 16px;
-      }
-
-      .metric strong {
+      canvas {
         display: block;
-        font-size: 28px;
-      }
-
-      .resume {
-        background: var(--panel);
+        width: 100%;
+        height: 220px;
         border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 20px;
+        border-radius: 7px;
+        background: #fbfcfa;
       }
 
-      .resume ul {
-        margin: 0;
-        padding-left: 20px;
+      .micro-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 14px;
       }
 
-      .resume li + li {
-        margin-top: 10px;
+      .micro {
+        background: var(--surface-2);
+        border-radius: 7px;
+        padding: 12px;
       }
 
-      footer {
-        padding: 34px 0 46px;
+      .micro strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .micro span {
         color: var(--muted);
-        font-size: 14px;
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
       }
 
-      @media (max-width: 860px) {
-        .hero {
-          grid-template-columns: 1fr;
-          padding-top: 46px;
+      .trade-log {
+        height: 606px;
+        overflow: hidden;
+      }
+
+      .trade {
+        height: 28px;
+        padding: 0 12px;
+        border-bottom: 1px solid #eef1ed;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .trade.buy {
+        background: linear-gradient(90deg, var(--bid-soft), transparent 42%);
+      }
+
+      .trade.sell {
+        background: linear-gradient(90deg, var(--ask-soft), transparent 42%);
+      }
+
+      .footer-note {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .error {
+        color: var(--ask);
+        font-weight: 700;
+      }
+
+      @media (max-width: 1180px) {
+        .status-row {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .grid,
-        .metrics {
+        .workspace {
           grid-template-columns: 1fr;
         }
 
-        nav {
+        .levels,
+        .trade-log {
+          height: 420px;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .topbar {
           align-items: flex-start;
           flex-direction: column;
-          justify-content: center;
-          padding: 14px 0;
+          padding: 12px 0;
+        }
+
+        .controls {
+          justify-content: flex-start;
+          width: 100%;
+        }
+
+        .status-row {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .book {
+          grid-template-columns: 1fr;
+        }
+
+        .side + .side {
+          border-left: 0;
+          border-top: 1px solid var(--line);
         }
       }
     </style>
   </head>
   <body>
     <header>
-      <nav>
-        <div class="brand">Quant Engine</div>
-        <div class="nav-links">
-          <a href="https://github.com/pranavputta22/Quant_Project">GitHub</a>
-          <a href="#features">Features</a>
-          <a href="#resume">Resume Bullets</a>
+      <div class="topbar">
+        <div class="brand">
+          <div class="mark">µ</div>
+          <div>
+            <h1>Market Microstructure Console</h1>
+            <p class="subtitle">Live Coinbase Exchange order book, trades, spread, and flow analytics</p>
+          </div>
         </div>
-      </nav>
+        <div class="controls">
+          <div class="control">
+            <label for="product">Market</label>
+            <select id="product">
+              <option>BTC-USD</option>
+              <option>ETH-USD</option>
+              <option>SOL-USD</option>
+              <option>LINK-USD</option>
+              <option>AVAX-USD</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="depth">Depth</label>
+            <select id="depth">
+              <option value="15">15 levels</option>
+              <option value="25" selected>25 levels</option>
+              <option value="40">40 levels</option>
+            </select>
+          </div>
+          <button id="connect">Connect</button>
+          <button class="secondary" id="clear">Clear</button>
+        </div>
+      </div>
     </header>
 
     <main>
-      <section class="hero">
-        <div>
-          <h1>Low-Latency Order Book Backtesting Engine</h1>
-          <p class="lead">
-            A C++17 market replay system that reconstructs Level 2 order book state, matches orders with
-            price-time priority, logs executions, and exposes a Python analysis workflow.
+      <section class="status-row" aria-label="Market summary">
+        <div class="stat">
+          <div class="stat-label">Connection</div>
+          <div class="stat-value small"><span id="dot" class="live-dot"></span><span id="status">Disconnected</span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Last Price</div>
+          <div id="lastPrice" class="stat-value">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Spread</div>
+          <div id="spread" class="stat-value">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Mid</div>
+          <div id="mid" class="stat-value">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Top Imbalance</div>
+          <div id="imbalance" class="stat-value">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Messages</div>
+          <div id="messages" class="stat-value">0</div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Level 2 Book</h2>
+            <span id="bookMeta" class="meta">Waiting for snapshot</span>
+          </div>
+          <div class="book">
+            <div class="side bid">
+              <div class="table-head"><span>Bid</span><span>Size</span><span>Cum</span></div>
+              <div id="bids" class="levels"></div>
+            </div>
+            <div class="side ask">
+              <div class="table-head"><span>Ask</span><span>Size</span><span>Cum</span></div>
+              <div id="asks" class="levels"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mid-panel">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Price Path</h2>
+              <span class="meta">Last 120 trades</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="chart" width="900" height="260"></canvas>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Short-Horizon Flow</h2>
+              <span class="meta">Session-local estimates</span>
+            </div>
+            <div class="micro-grid">
+              <div class="micro"><span>Buy Volume</span><strong id="buyVol">--</strong></div>
+              <div class="micro"><span>Sell Volume</span><strong id="sellVol">--</strong></div>
+              <div class="micro"><span>VWAP</span><strong id="vwap">--</strong></div>
+              <div class="micro"><span>Notional</span><strong id="notional">--</strong></div>
+            </div>
+          </div>
+
+          <p id="note" class="footer-note">
+            Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2, matches, and ticker channels in the browser.
           </p>
-          <div class="actions">
-            <a class="button" href="https://github.com/pranavputta22/Quant_Project">View Source</a>
-            <a class="button secondary" href="#quickstart">Run Locally</a>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Live Trades</h2>
+            <span id="tradeMeta" class="meta">No prints yet</span>
           </div>
-        </div>
-
-        <div class="terminal" aria-label="Replay output example">
-          <div class="terminal-bar">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
-          <pre><code>Replay complete
-  Events: 10
-  Trades: 6
-  Executed quantity: 265
-  Notional: 2,651,650
-Final top of book
-  Bid: 10000 x 25
-  Ask: 10015 x 70</code></pre>
-        </div>
-      </section>
-
-      <section id="features">
-        <h2>Core Engineering</h2>
-        <div class="grid">
-          <article class="card">
-            <h3>Matching Engine</h3>
-            <p>Supports limit, market, and cancel events with deterministic price-time priority.</p>
-          </article>
-          <article class="card">
-            <h3>Order Book State</h3>
-            <p>Maintains bid and ask levels, O(1) order lookup, and top-of-book reconstruction.</p>
-          </article>
-          <article class="card">
-            <h3>Research Layer</h3>
-            <p>Exports trade logs for Python analysis of volume, VWAP, notional, and cashflow proxy.</p>
-          </article>
-        </div>
-      </section>
-
-      <section>
-        <h2>Sample Replay Metrics</h2>
-        <div class="metrics">
-          <div class="metric"><strong>10</strong><span>events replayed</span></div>
-          <div class="metric"><strong>6</strong><span>trades generated</span></div>
-          <div class="metric"><strong>265</strong><span>shares executed</span></div>
-          <div class="metric"><strong>10,006.23</strong><span>VWAP</span></div>
-        </div>
-      </section>
-
-      <section id="quickstart">
-        <h2>Quickstart</h2>
-        <div class="terminal">
-          <pre><code>g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude \
-  src/order_book.cpp src/backtest.cpp src/main.cpp \
-  -o build/quant_replay.exe
-
-build\quant_replay.exe data\sample_events.csv build\trades.csv
-py python\analyze_results.py build\trades.csv</code></pre>
-        </div>
-      </section>
-
-      <section id="resume">
-        <h2>Resume Bullets</h2>
-        <div class="resume">
-          <ul>
-            <li>Built a C++17 event-driven limit order book and replay engine supporting price-time priority matching, cancellations, market orders, trade logging, and Level 2 book reconstruction.</li>
-            <li>Implemented O(1) cancellation lookup and deterministic matching tests for order priority, partial fills, and resting liquidity correctness.</li>
-            <li>Added a Python research layer to analyze replay outputs, summarize notional/volume/VWAP, and generate execution metrics.</li>
-          </ul>
+          <div class="table-head"><span>Price</span><span>Size</span><span>Time</span></div>
+          <div id="trades" class="trade-log"></div>
         </div>
       </section>
     </main>
 
-    <footer>
-      Designed as a quant developer portfolio project: systems performance, market data correctness, and clean research tooling.
-    </footer>
+    <script>
+      const WS_URL = "wss://ws-feed.exchange.coinbase.com";
+      const MAX_TRADES = 120;
+
+      const product = document.getElementById("product");
+      const depth = document.getElementById("depth");
+      const connectButton = document.getElementById("connect");
+      const clearButton = document.getElementById("clear");
+      const dot = document.getElementById("dot");
+      const statusText = document.getElementById("status");
+      const bidsEl = document.getElementById("bids");
+      const asksEl = document.getElementById("asks");
+      const tradesEl = document.getElementById("trades");
+      const chart = document.getElementById("chart");
+      const ctx = chart.getContext("2d");
+
+      const fields = {
+        lastPrice: document.getElementById("lastPrice"),
+        spread: document.getElementById("spread"),
+        mid: document.getElementById("mid"),
+        imbalance: document.getElementById("imbalance"),
+        messages: document.getElementById("messages"),
+        bookMeta: document.getElementById("bookMeta"),
+        tradeMeta: document.getElementById("tradeMeta"),
+        buyVol: document.getElementById("buyVol"),
+        sellVol: document.getElementById("sellVol"),
+        vwap: document.getElementById("vwap"),
+        notional: document.getElementById("notional"),
+        note: document.getElementById("note")
+      };
+
+      let socket = null;
+      let bids = new Map();
+      let asks = new Map();
+      let trades = [];
+      let messageCount = 0;
+      let buyVolume = 0;
+      let sellVolume = 0;
+      let sessionNotional = 0;
+      let sessionQty = 0;
+      let renderScheduled = false;
+
+      function formatPrice(value) {
+        if (!Number.isFinite(value)) return "--";
+        return value >= 1000
+          ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : value.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+      }
+
+      function formatSize(value) {
+        if (!Number.isFinite(value)) return "--";
+        return value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+      }
+
+      function setStatus(text, connected = false, error = false) {
+        statusText.textContent = text;
+        statusText.className = error ? "error" : "";
+        dot.classList.toggle("on", connected);
+        connectButton.textContent = connected ? "Disconnect" : "Connect";
+      }
+
+      function resetState() {
+        bids = new Map();
+        asks = new Map();
+        trades = [];
+        messageCount = 0;
+        buyVolume = 0;
+        sellVolume = 0;
+        sessionNotional = 0;
+        sessionQty = 0;
+        fields.lastPrice.textContent = "--";
+        fields.spread.textContent = "--";
+        fields.mid.textContent = "--";
+        fields.imbalance.textContent = "--";
+        fields.messages.textContent = "0";
+        fields.bookMeta.textContent = "Waiting for snapshot";
+        fields.tradeMeta.textContent = "No prints yet";
+        fields.buyVol.textContent = "--";
+        fields.sellVol.textContent = "--";
+        fields.vwap.textContent = "--";
+        fields.notional.textContent = "--";
+        fields.note.textContent =
+          "Data source: Coinbase Exchange public WebSocket feed. The console subscribes to live level2, matches, and ticker channels in the browser.";
+        bidsEl.innerHTML = "";
+        asksEl.innerHTML = "";
+        tradesEl.innerHTML = "";
+        drawChart();
+      }
+
+      function subscribe() {
+        socket.send(JSON.stringify({
+          type: "subscribe",
+          product_ids: [product.value],
+          channels: ["level2", "matches", "ticker"]
+        }));
+      }
+
+      function connect() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, "user disconnect");
+          return;
+        }
+
+        resetState();
+        setStatus("Connecting");
+        socket = new WebSocket(WS_URL);
+
+        socket.addEventListener("open", () => {
+          setStatus("Live", true);
+          subscribe();
+        });
+
+        socket.addEventListener("message", (event) => {
+          messageCount += 1;
+          fields.messages.textContent = messageCount.toLocaleString();
+          handleMessage(JSON.parse(event.data));
+        });
+
+        socket.addEventListener("close", () => {
+          setStatus("Disconnected");
+        });
+
+        socket.addEventListener("error", () => {
+          setStatus("Connection error", false, true);
+          fields.note.textContent =
+            "The WebSocket connection failed. Some networks block exchange feeds; try another network or refresh the page.";
+        });
+      }
+
+      function sortedLevels(book, side) {
+        const rows = Array.from(book.entries()).map(([price, size]) => [Number(price), Number(size)]);
+        rows.sort((a, b) => side === "bid" ? b[0] - a[0] : a[0] - b[0]);
+        return rows.slice(0, Number(depth.value));
+      }
+
+      function applyLevel(side, price, size) {
+        const book = side === "buy" ? bids : asks;
+        const key = String(price);
+        const numericSize = Number(size);
+        if (numericSize === 0) {
+          book.delete(key);
+        } else {
+          book.set(key, numericSize);
+        }
+      }
+
+      function handleMessage(message) {
+        if (message.type === "subscriptions") return;
+
+        if (message.type === "snapshot") {
+          bids = new Map(message.bids.map(([price, size]) => [String(price), Number(size)]));
+          asks = new Map(message.asks.map(([price, size]) => [String(price), Number(size)]));
+          fields.bookMeta.textContent = `${product.value} snapshot loaded`;
+          scheduleRender();
+          return;
+        }
+
+        if (message.type === "l2update") {
+          for (const [side, price, size] of message.changes) {
+            applyLevel(side, price, size);
+          }
+          scheduleRender();
+          return;
+        }
+
+        if (message.type === "ticker") {
+          const px = Number(message.price);
+          if (Number.isFinite(px)) {
+            fields.lastPrice.textContent = formatPrice(px);
+          }
+          return;
+        }
+
+        if (message.type === "match" || message.type === "last_match") {
+          addTrade(message);
+          scheduleRender();
+        }
+      }
+
+      function addTrade(message) {
+        const price = Number(message.price);
+        const size = Number(message.size);
+        if (!Number.isFinite(price) || !Number.isFinite(size)) return;
+
+        const side = message.side === "buy" ? "buy" : "sell";
+        trades.unshift({
+          price,
+          size,
+          side,
+          time: message.time ? new Date(message.time) : new Date()
+        });
+        trades = trades.slice(0, MAX_TRADES);
+
+        if (side === "buy") {
+          buyVolume += size;
+        } else {
+          sellVolume += size;
+        }
+        sessionQty += size;
+        sessionNotional += price * size;
+
+        fields.tradeMeta.textContent = `${trades.length} recent prints`;
+        fields.buyVol.textContent = formatSize(buyVolume);
+        fields.sellVol.textContent = formatSize(sellVolume);
+        fields.vwap.textContent = formatPrice(sessionNotional / sessionQty);
+        fields.notional.textContent = `$${Math.round(sessionNotional).toLocaleString()}`;
+      }
+
+      function scheduleRender() {
+        if (renderScheduled) return;
+        renderScheduled = true;
+        requestAnimationFrame(() => {
+          renderScheduled = false;
+          renderBook();
+          renderTrades();
+          renderStats();
+          drawChart();
+        });
+      }
+
+      function renderBook() {
+        renderSide(bidsEl, sortedLevels(bids, "bid"), "bid");
+        renderSide(asksEl, sortedLevels(asks, "ask"), "ask");
+      }
+
+      function renderSide(container, rows, side) {
+        let cumulative = 0;
+        const cumulativeRows = rows.map(([price, size]) => {
+          cumulative += size;
+          return { price, size, cumulative };
+        });
+        const maxCum = Math.max(1, ...cumulativeRows.map((row) => row.cumulative));
+
+        container.innerHTML = cumulativeRows.map((row) => {
+          const depthPct = Math.min(100, (row.cumulative / maxCum) * 100).toFixed(2);
+          const textClass = side === "bid" ? "bid-text" : "ask-text";
+          return `
+            <div class="level" style="--depth:${depthPct}%">
+              <span class="price ${textClass}">${formatPrice(row.price)}</span>
+              <span>${formatSize(row.size)}</span>
+              <span>${formatSize(row.cumulative)}</span>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderTrades() {
+        tradesEl.innerHTML = trades.map((trade) => `
+          <div class="trade ${trade.side}">
+            <span class="price ${trade.side === "buy" ? "bid-text" : "ask-text"}">${formatPrice(trade.price)}</span>
+            <span>${formatSize(trade.size)}</span>
+            <span>${trade.time.toLocaleTimeString()}</span>
+          </div>
+        `).join("");
+      }
+
+      function renderStats() {
+        const topBid = sortedLevels(bids, "bid")[0];
+        const topAsk = sortedLevels(asks, "ask")[0];
+        if (!topBid || !topAsk) return;
+
+        const spread = topAsk[0] - topBid[0];
+        const mid = (topAsk[0] + topBid[0]) / 2;
+        const topBidSize = topBid[1];
+        const topAskSize = topAsk[1];
+        const imbalance = (topBidSize - topAskSize) / (topBidSize + topAskSize);
+
+        fields.spread.textContent = formatPrice(spread);
+        fields.mid.textContent = formatPrice(mid);
+        fields.imbalance.textContent = `${(imbalance * 100).toFixed(1)}%`;
+        fields.bookMeta.textContent = `${bids.size.toLocaleString()} bids / ${asks.size.toLocaleString()} asks`;
+      }
+
+      function drawChart() {
+        const width = chart.width;
+        const height = chart.height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#fbfcfa";
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = "#d6ddd4";
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 4; i += 1) {
+          const y = (height / 4) * i;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        const points = trades.slice().reverse();
+        if (points.length < 2) {
+          ctx.fillStyle = "#627069";
+          ctx.font = "16px Inter, sans-serif";
+          ctx.fillText("Waiting for live trades", 24, 42);
+          return;
+        }
+
+        const prices = points.map((point) => point.price);
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        const range = Math.max(0.000001, max - min);
+
+        ctx.strokeStyle = "#245a9a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        points.forEach((point, index) => {
+          const x = (index / (points.length - 1)) * (width - 34) + 17;
+          const y = height - 18 - ((point.price - min) / range) * (height - 36);
+          if (index === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = "#17211c";
+        ctx.font = "13px Inter, sans-serif";
+        ctx.fillText(formatPrice(max), 18, 20);
+        ctx.fillText(formatPrice(min), 18, height - 10);
+      }
+
+      connectButton.addEventListener("click", connect);
+      clearButton.addEventListener("click", () => {
+        resetState();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          subscribe();
+        }
+      });
+      product.addEventListener("change", () => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, "switch market");
+          setTimeout(connect, 200);
+        }
+      });
+      depth.addEventListener("change", scheduleRender);
+
+      resetState();
+    </script>
   </body>
 </html>
