@@ -13,6 +13,7 @@ The deployed app runs entirely in the browser:
 - Displays real-time trades from the `matches` feed
 - Tracks last price, spread, midprice, top-of-book imbalance, VWAP, volume, and notional
 - Supports switching between liquid USD markets such as `BTC-USD`, `ETH-USD`, and `SOL-USD`
+- Records raw exchange messages and exports them as JSONL for native replay
 
 Open locally by launching:
 
@@ -39,6 +40,8 @@ The native engine is still available for deterministic local testing:
 - Price-time priority matching for limit and market orders
 - Order cancellation with O(1) lookup by id
 - CSV market replay with trade log output
+- Coinbase JSONL replay for recorded `level2` and `match` messages
+- Synthetic benchmark executable for events/sec throughput checks
 - Unit-style correctness tests for matching, resting liquidity, and cancellation
 - Python analysis layer for replay output summaries
 
@@ -76,6 +79,8 @@ If CMake is not installed, build directly with MinGW `g++`:
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude src/order_book.cpp src/backtest.cpp src/main.cpp -o build/quant_replay.exe
 g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude src/order_book.cpp tests/order_book_tests.cpp -o build/order_book_tests.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude src/order_book.cpp src/market_data.cpp src/coinbase_replay.cpp -o build/coinbase_replay.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude src/order_book.cpp src/bench_replay.cpp -o build/bench_replay.exe
 ```
 
 ## Run A Replay
@@ -97,10 +102,35 @@ On Windows, `py` can be used instead of `python`:
 py python\analyze_results.py trades.csv
 ```
 
+## Replay Real Recorded Events
+
+1. Open the public app or local `docs/index.html`.
+2. Connect to a market.
+3. Click `Record`.
+4. Let the feed run for a short session.
+5. Click `Stop Recording`, then `Download JSONL`.
+6. Replay the downloaded file locally:
+
+```powershell
+.\build\coinbase_replay.exe .\BTC-USD-recording.jsonl
+```
+
+The repository also includes a tiny sample:
+
+```powershell
+.\build\coinbase_replay.exe data\coinbase_sample.jsonl
+```
+
 ## Run Tests
 
 ```powershell
 .\build\Release\order_book_tests.exe
+```
+
+## Run Benchmark
+
+```powershell
+.\build\bench_replay.exe 1000000
 ```
 
 ## Input Format

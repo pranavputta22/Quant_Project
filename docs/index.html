@@ -161,7 +161,7 @@
 
       .status-row {
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 10px;
         margin-bottom: 14px;
       }
@@ -445,7 +445,7 @@
     <header>
       <div class="topbar">
         <div class="brand">
-          <div class="mark">µ</div>
+          <div class="mark">M</div>
           <div>
             <h1>Market Microstructure Console</h1>
             <p class="subtitle">Live Coinbase Exchange order book, trades, spread, and flow analytics</p>
@@ -471,6 +471,8 @@
             </select>
           </div>
           <button id="connect">Connect</button>
+          <button class="secondary" id="record">Record</button>
+          <button class="secondary" id="download" disabled>Download JSONL</button>
           <button class="secondary" id="clear">Clear</button>
         </div>
       </div>
@@ -501,6 +503,10 @@
         <div class="stat">
           <div class="stat-label">Messages</div>
           <div id="messages" class="stat-value">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Recorded</div>
+          <div id="recorded" class="stat-value">0</div>
         </div>
       </section>
 
@@ -569,6 +575,8 @@
       const product = document.getElementById("product");
       const depth = document.getElementById("depth");
       const connectButton = document.getElementById("connect");
+      const recordButton = document.getElementById("record");
+      const downloadButton = document.getElementById("download");
       const clearButton = document.getElementById("clear");
       const dot = document.getElementById("dot");
       const statusText = document.getElementById("status");
@@ -584,6 +592,7 @@
         mid: document.getElementById("mid"),
         imbalance: document.getElementById("imbalance"),
         messages: document.getElementById("messages"),
+        recorded: document.getElementById("recorded"),
         bookMeta: document.getElementById("bookMeta"),
         tradeMeta: document.getElementById("tradeMeta"),
         buyVol: document.getElementById("buyVol"),
@@ -603,6 +612,8 @@
       let sessionNotional = 0;
       let sessionQty = 0;
       let renderScheduled = false;
+      let recording = false;
+      let recordedMessages = [];
 
       function formatPrice(value) {
         if (!Number.isFinite(value)) return "--";
@@ -637,6 +648,7 @@
         fields.mid.textContent = "--";
         fields.imbalance.textContent = "--";
         fields.messages.textContent = "0";
+        fields.recorded.textContent = "0";
         fields.bookMeta.textContent = "Waiting for snapshot";
         fields.tradeMeta.textContent = "No prints yet";
         fields.buyVol.textContent = "--";
@@ -677,6 +689,11 @@
         socket.addEventListener("message", (event) => {
           messageCount += 1;
           fields.messages.textContent = messageCount.toLocaleString();
+          if (recording) {
+            recordedMessages.push(event.data);
+            fields.recorded.textContent = recordedMessages.length.toLocaleString();
+            downloadButton.disabled = recordedMessages.length === 0;
+          }
           handleMessage(JSON.parse(event.data));
         });
 
@@ -689,6 +706,26 @@
           fields.note.textContent =
             "The WebSocket connection failed. Some networks block exchange feeds; try another network or refresh the page.";
         });
+      }
+
+      function toggleRecording() {
+        recording = !recording;
+        recordButton.textContent = recording ? "Stop Recording" : "Record";
+        recordButton.classList.toggle("secondary", !recording);
+      }
+
+      function downloadRecording() {
+        if (recordedMessages.length === 0) return;
+        const blob = new Blob([recordedMessages.join("\n") + "\n"], { type: "application/x-ndjson" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        link.href = url;
+        link.download = `${product.value}-${stamp}.jsonl`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
       }
 
       function sortedLevels(book, side) {
@@ -887,10 +924,15 @@
       connectButton.addEventListener("click", connect);
       clearButton.addEventListener("click", () => {
         resetState();
+        recordedMessages = [];
+        fields.recorded.textContent = "0";
+        downloadButton.disabled = true;
         if (socket && socket.readyState === WebSocket.OPEN) {
           subscribe();
         }
       });
+      recordButton.addEventListener("click", toggleRecording);
+      downloadButton.addEventListener("click", downloadRecording);
       product.addEventListener("change", () => {
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.close(1000, "switch market");

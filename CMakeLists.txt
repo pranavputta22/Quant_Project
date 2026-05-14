@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(quant_engine
     src/backtest.cpp
+    src/market_data.cpp
     src/order_book.cpp
 )
 
@@ -23,3 +24,9 @@ target_link_libraries(quant_replay PRIVATE quant_engine)
 
 add_executable(order_book_tests tests/order_book_tests.cpp)
 target_link_libraries(order_book_tests PRIVATE quant_engine)
+
+add_executable(coinbase_replay src/coinbase_replay.cpp)
+target_link_libraries(coinbase_replay PRIVATE quant_engine)
+
+add_executable(bench_replay src/bench_replay.cpp)
+target_link_libraries(bench_replay PRIVATE quant_engine)
