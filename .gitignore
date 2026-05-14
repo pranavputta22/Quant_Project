@@ -1,0 +1,6 @@
+build/
+*.exe
+*.obj
+*.o
+*.csv.tmp
+__pycache__/
