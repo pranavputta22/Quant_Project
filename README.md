@@ -41,6 +41,7 @@ The native engine is still available for deterministic local testing:
 - Order cancellation with O(1) lookup by id
 - CSV market replay with trade log output
 - Coinbase JSONL replay for recorded `level2` and `match` messages
+- Session analytics for average/min/max spread and average absolute imbalance
 - Synthetic benchmark executable for events/sec throughput checks
 - Unit-style correctness tests for matching, resting liquidity, and cancellation
 - Python analysis layer for replay output summaries
@@ -121,6 +122,8 @@ The repository also includes a tiny sample:
 .\build\coinbase_replay.exe data\coinbase_sample.jsonl
 ```
 
+Replay output includes message counts, snapshot depth, trade count, notional, final best bid/ask, spread, midprice, average spread, and average absolute top-of-book imbalance.
+
 ## Run Tests
 
 ```powershell
@@ -131,6 +134,12 @@ The repository also includes a tiny sample:
 
 ```powershell
 .\build\bench_replay.exe 1000000
+```
+
+For a resume-scale benchmark:
+
+```powershell
+.\build\bench_replay.exe 10000000
 ```
 
 ## Input Format

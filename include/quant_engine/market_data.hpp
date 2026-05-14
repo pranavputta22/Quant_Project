@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace qe {
 
@@ -25,10 +26,16 @@ struct DepthMetrics {
 struct MarketReplayStats {
     std::size_t messages{};
     std::size_t snapshots{};
+    std::size_t snapshot_levels{};
     std::size_t level_updates{};
     std::size_t trades{};
+    std::size_t depth_observations{};
     Quantity executed_quantity{};
     long double notional{};
+    long double spread_sum{};
+    Price min_spread{};
+    Price max_spread{};
+    long double abs_imbalance_sum{};
     DepthMetrics final_depth{};
 };
 
@@ -59,6 +66,7 @@ private:
     std::map<Price, Quantity> asks_;
 };
 
+std::vector<CoinbaseMessage> parse_coinbase_jsonl_messages(const std::string& row);
 std::optional<CoinbaseMessage> parse_coinbase_jsonl(const std::string& row);
 MarketReplayStats replay_coinbase_jsonl(std::istream& input);
 

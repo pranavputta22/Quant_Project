@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -34,41 +35,88 @@ std::optional<std::string> json_string_value(const std::string& row, const std::
     return row.substr(start, end - start);
 }
 
-std::vector<std::string> extract_changes(const std::string& row) {
-    const auto changes_pos = row.find("\"changes\":");
-    if (changes_pos == std::string::npos) {
-        return {};
+std::optional<std::string> json_array_region(const std::string& row, const std::string& key) {
+    const std::string needle = "\"" + key + "\":";
+    const auto key_pos = row.find(needle);
+    if (key_pos == std::string::npos) {
+        return std::nullopt;
     }
 
-    std::vector<std::string> values;
-    auto pos = changes_pos;
-    while ((pos = row.find('[', pos + 1)) != std::string::npos) {
-        const auto end = row.find(']', pos);
-        if (end == std::string::npos) {
-            break;
-        }
-        const auto segment = row.substr(pos, end - pos);
-        if (segment.find("\"buy\"") != std::string::npos || segment.find("\"sell\"") != std::string::npos) {
-            values.push_back(segment);
-        }
-        pos = end;
+    const auto start = row.find('[', key_pos + needle.size());
+    if (start == std::string::npos) {
+        return std::nullopt;
     }
-    return values;
+
+    int depth = 0;
+    for (auto pos = start; pos < row.size(); ++pos) {
+        if (row[pos] == '[') {
+            ++depth;
+        } else if (row[pos] == ']') {
+            --depth;
+            if (depth == 0) {
+                return row.substr(start, pos - start + 1);
+            }
+        }
+    }
+
+    return std::nullopt;
 }
 
-std::vector<std::string> quoted_values(const std::string& text) {
-    std::vector<std::string> values;
-    std::size_t pos = 0;
-    while ((pos = text.find('"', pos)) != std::string::npos) {
-        const auto start = pos + 1;
-        const auto end = text.find('"', start);
-        if (end == std::string::npos) {
-            break;
-        }
-        values.push_back(text.substr(start, end - start));
-        pos = end + 1;
+void append_snapshot_levels(
+    std::vector<CoinbaseMessage>& messages,
+    const std::string& row,
+    const std::string& key,
+    Side side) {
+    const auto region = json_array_region(row, key);
+    if (!region) {
+        return;
     }
-    return values;
+
+    static const std::regex pair_pattern("\\[\\s*\"([0-9.]+)\"\\s*,\\s*\"([0-9.]+)\"\\s*\\]");
+    for (std::sregex_iterator it(region->begin(), region->end(), pair_pattern), end; it != end; ++it) {
+        messages.push_back(CoinbaseMessage{
+            CoinbaseMessage::Kind::LevelUpdate,
+            side,
+            decimal_to_ticks((*it)[1].str()),
+            decimal_to_quantity((*it)[2].str())
+        });
+    }
+}
+
+void append_l2_changes(std::vector<CoinbaseMessage>& messages, const std::string& row) {
+    const auto region = json_array_region(row, "changes");
+    if (!region) {
+        return;
+    }
+
+    static const std::regex change_pattern("\\[\\s*\"(buy|sell)\"\\s*,\\s*\"([0-9.]+)\"\\s*,\\s*\"([0-9.]+)\"\\s*\\]");
+    for (std::sregex_iterator it(region->begin(), region->end(), change_pattern), end; it != end; ++it) {
+        messages.push_back(CoinbaseMessage{
+            CoinbaseMessage::Kind::LevelUpdate,
+            (*it)[1].str() == "buy" ? Side::Buy : Side::Sell,
+            decimal_to_ticks((*it)[2].str()),
+            decimal_to_quantity((*it)[3].str())
+        });
+    }
+}
+
+void observe_depth(MarketReplayStats& stats, const MarketDepth& depth) {
+    const auto metrics = depth.metrics();
+    if (!metrics.has_bid || !metrics.has_ask || metrics.spread < 0) {
+        return;
+    }
+
+    if (stats.depth_observations == 0) {
+        stats.min_spread = metrics.spread;
+        stats.max_spread = metrics.spread;
+    } else {
+        stats.min_spread = std::min(stats.min_spread, metrics.spread);
+        stats.max_spread = std::max(stats.max_spread, metrics.spread);
+    }
+
+    ++stats.depth_observations;
+    stats.spread_sum += metrics.spread;
+    stats.abs_imbalance_sum += std::abs(metrics.top_imbalance);
 }
 
 }  // namespace
@@ -134,33 +182,23 @@ Quantity decimal_to_quantity(const std::string& value, int scale) {
     return static_cast<Quantity>(std::llround(std::stold(value) * scale));
 }
 
-std::optional<CoinbaseMessage> parse_coinbase_jsonl(const std::string& row) {
+std::vector<CoinbaseMessage> parse_coinbase_jsonl_messages(const std::string& row) {
+    std::vector<CoinbaseMessage> messages;
     const auto type = json_string_value(row, "type");
     if (!type) {
-        return std::nullopt;
+        return messages;
     }
 
     if (*type == "snapshot") {
-        return CoinbaseMessage{CoinbaseMessage::Kind::Snapshot};
+        messages.push_back(CoinbaseMessage{CoinbaseMessage::Kind::Snapshot});
+        append_snapshot_levels(messages, row, "bids", Side::Buy);
+        append_snapshot_levels(messages, row, "asks", Side::Sell);
+        return messages;
     }
 
     if (*type == "l2update") {
-        const auto changes = extract_changes(row);
-        if (changes.empty()) {
-            return std::nullopt;
-        }
-
-        const auto fields = quoted_values(changes.front());
-        if (fields.size() < 3) {
-            return std::nullopt;
-        }
-
-        return CoinbaseMessage{
-            CoinbaseMessage::Kind::LevelUpdate,
-            fields[0] == "buy" ? Side::Buy : Side::Sell,
-            decimal_to_ticks(fields[1]),
-            decimal_to_quantity(fields[2])
-        };
+        append_l2_changes(messages, row);
+        return messages;
     }
 
     if (*type == "match" || *type == "last_match") {
@@ -168,18 +206,28 @@ std::optional<CoinbaseMessage> parse_coinbase_jsonl(const std::string& row) {
         const auto price = json_string_value(row, "price");
         const auto size = json_string_value(row, "size");
         if (!side || !price || !size) {
-            return std::nullopt;
+            return messages;
         }
 
-        return CoinbaseMessage{
+        messages.push_back(CoinbaseMessage{
             CoinbaseMessage::Kind::Match,
             *side == "buy" ? Side::Buy : Side::Sell,
             decimal_to_ticks(*price),
             decimal_to_quantity(*size)
-        };
+        });
+        return messages;
     }
 
-    return CoinbaseMessage{CoinbaseMessage::Kind::Ignore};
+    messages.push_back(CoinbaseMessage{CoinbaseMessage::Kind::Ignore});
+    return messages;
+}
+
+std::optional<CoinbaseMessage> parse_coinbase_jsonl(const std::string& row) {
+    const auto messages = parse_coinbase_jsonl_messages(row);
+    if (messages.empty()) {
+        return std::nullopt;
+    }
+    return messages.front();
 }
 
 MarketReplayStats replay_coinbase_jsonl(std::istream& input) {
@@ -188,28 +236,35 @@ MarketReplayStats replay_coinbase_jsonl(std::istream& input) {
     std::string row;
 
     while (std::getline(input, row)) {
-        const auto message = parse_coinbase_jsonl(row);
-        if (!message) {
+        const auto messages = parse_coinbase_jsonl_messages(row);
+        if (messages.empty()) {
             continue;
         }
 
         ++stats.messages;
-        switch (message->kind) {
-        case CoinbaseMessage::Kind::Snapshot:
-            depth.clear();
-            ++stats.snapshots;
-            break;
-        case CoinbaseMessage::Kind::LevelUpdate:
-            depth.apply_level(message->side, message->price, message->quantity);
-            ++stats.level_updates;
-            break;
-        case CoinbaseMessage::Kind::Match:
-            ++stats.trades;
-            stats.executed_quantity += message->quantity;
-            stats.notional += static_cast<long double>(message->price) * static_cast<long double>(message->quantity);
-            break;
-        case CoinbaseMessage::Kind::Ignore:
-            break;
+        const bool snapshot_row = messages.front().kind == CoinbaseMessage::Kind::Snapshot;
+        for (const auto& message : messages) {
+            switch (message.kind) {
+            case CoinbaseMessage::Kind::Snapshot:
+                depth.clear();
+                ++stats.snapshots;
+                break;
+            case CoinbaseMessage::Kind::LevelUpdate:
+                depth.apply_level(message.side, message.price, message.quantity);
+                ++stats.level_updates;
+                if (snapshot_row) {
+                    ++stats.snapshot_levels;
+                }
+                observe_depth(stats, depth);
+                break;
+            case CoinbaseMessage::Kind::Match:
+                ++stats.trades;
+                stats.executed_quantity += message.quantity;
+                stats.notional += static_cast<long double>(message.price) * static_cast<long double>(message.quantity);
+                break;
+            case CoinbaseMessage::Kind::Ignore:
+                break;
+            }
         }
     }
 

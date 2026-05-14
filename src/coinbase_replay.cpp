@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
         std::cout << "Coinbase JSONL replay complete\n";
         std::cout << "  Messages: " << stats.messages << '\n';
         std::cout << "  Snapshots: " << stats.snapshots << '\n';
+        std::cout << "  Snapshot levels: " << stats.snapshot_levels << '\n';
         std::cout << "  Level updates: " << stats.level_updates << '\n';
         std::cout << "  Trades: " << stats.trades << '\n';
         std::cout << "  Executed quantity: " << std::setprecision(6) << quantity(stats.executed_quantity) << '\n';
@@ -45,6 +46,15 @@ int main(int argc, char** argv) {
             std::cout << "  Spread: " << price(stats.final_depth.spread) << '\n';
             std::cout << "  Mid: " << price(stats.final_depth.mid) << '\n';
             std::cout << "  Top imbalance: " << std::setprecision(4) << stats.final_depth.top_imbalance << '\n';
+        }
+        if (stats.depth_observations > 0) {
+            std::cout << std::setprecision(2);
+            std::cout << "  Avg spread: " << price(static_cast<qe::Price>(stats.spread_sum / stats.depth_observations)) << '\n';
+            std::cout << "  Min spread: " << price(stats.min_spread) << '\n';
+            std::cout << "  Max spread: " << price(stats.max_spread) << '\n';
+            std::cout << std::setprecision(4);
+            std::cout << "  Avg abs imbalance: "
+                      << static_cast<double>(stats.abs_imbalance_sum / stats.depth_observations) << '\n';
         }
     } catch (const std::exception& ex) {
         std::cerr << "error: " << ex.what() << '\n';
